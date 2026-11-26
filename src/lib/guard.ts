@@ -27,24 +27,24 @@ export function clientIp(headers: Headers, options?: { trustProxy?: boolean }): 
 export function assertSameOrigin(headers: Headers): void {
   // 浏览器会给跨站请求打上 Sec-Fetch-Site，而 curl 排障命令不带它；据此挡住伪装成同源的跨站刷新。
   if (headers.get("sec-fetch-site") === "cross-site") {
-    throw new GuardError("拒绝跨站刷新", 403);
+    throw new GuardError("Cross-site refresh request rejected", 403);
   }
   const origin = headers.get("origin");
   if (!origin) return;
   const host = (process.env.TRUST_PROXY_HEADERS === "1" ? headers.get("x-forwarded-host") : null) || headers.get("host");
-  if (!host) throw new GuardError("缺少主机信息", 403);
+  if (!host) throw new GuardError("Missing host information", 403);
   let originHost = "";
   try {
     originHost = new URL(origin).host;
   } catch {
-    throw new GuardError("来源无效", 403);
+    throw new GuardError("Invalid request origin", 403);
   }
-  if (originHost !== host) throw new GuardError("拒绝跨站刷新", 403);
+  if (originHost !== host) throw new GuardError("Cross-site refresh request rejected", 403);
 }
 
 export function assertSmallBody(headers: Headers): void {
   const length = headers.get("content-length");
-  if (length && Number(length) > 2048) throw new GuardError("请求无效", 400);
+  if (length && Number(length) > 2048) throw new GuardError("Invalid request", 400);
 }
 
 /** Returns false when this IP has used its manual-refresh budget. */
