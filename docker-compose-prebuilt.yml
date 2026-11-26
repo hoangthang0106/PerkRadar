@@ -1,0 +1,54 @@
+# PerkRadar - Portainer Git stack (IT-MANAGER).
+# Fallback for Portainer Agent endpoints that do not support Compose builds.
+# Build image local/perkradar-itmanager:18897 via Portainer Images first.
+# ONE container only. Both published host port and app listener: 18897.
+# Check that LAN_IP exists on the Docker host and TCP 18897 is unused.
+name: perkradar
+
+services:
+  web:
+    # Build once from this fork via Portainer Images or `docker build`.
+    # Portainer Git stacks on remote endpoints cannot reliably run build directives.
+    image: local/perkradar-itmanager:18897
+    container_name: perkradar
+    restart: unless-stopped
+    mem_limit: 768m
+
+    ports:
+      - "${LAN_IP:?SET_DOCKER_HOST_LAN_IP}:18897:18897/tcp"
+
+    environment:
+      NODE_ENV: "production"
+      HOST: "0.0.0.0"
+      PORT: "18897"
+      DATA_DIR: "/data"
+      TZ: "Asia/Ho_Chi_Minh"
+      PERKRADAR_ACCESS_TOKEN: "${PERKRADAR_ACCESS_TOKEN:?SET_MIN_32_CHAR_ACCESS_TOKEN}"
+      # HTTP LAN only; Secure cookies would block login without HTTPS.
+      # Never publish this HTTP service to the public internet.
+      PERKRADAR_SECURE_COOKIE: "0"
+      TRUST_PROXY_HEADERS: "0"
+
+    volumes:
+      - perkradar_data:/data
+
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:18897/api/health',{headers:{Authorization:'Bearer '+process.env.PERKRADAR_ACCESS_TOKEN}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  perkradar_data:
