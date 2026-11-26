@@ -27,7 +27,7 @@ export function clientIp(headers: Headers, options?: { trustProxy?: boolean }): 
 export function assertSameOrigin(headers: Headers): void {
   // 浏览器会给跨站请求打上 Sec-Fetch-Site，而 curl 排障命令不带它；据此挡住伪装成同源的跨站刷新。
   if (headers.get("sec-fetch-site") === "cross-site") {
-    throw new GuardError("Cross-site refresh request rejected", 403);
+    throw new GuardError("拒绝跨站刷新", 403);
   }
   const origin = headers.get("origin");
   if (!origin) return;
@@ -39,7 +39,7 @@ export function assertSameOrigin(headers: Headers): void {
   } catch {
     throw new GuardError("Invalid request origin", 403);
   }
-  if (originHost !== host) throw new GuardError("Cross-site refresh request rejected", 403);
+  if (originHost !== host) throw new GuardError("拒绝跨站刷新", 403);
 }
 
 export function assertSmallBody(headers: Headers): void {
