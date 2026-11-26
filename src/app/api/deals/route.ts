@@ -14,7 +14,7 @@ export function GET(request: Request) {
     const params = new URL(request.url).searchParams;
     let board;
     try { board = boardPage(getBoardState(), params); } catch (error) {
-      if (error instanceof Error && error.message === "无效分页参数") return NextResponse.json({ error: error.message }, { status: 400 });
+      if (error instanceof Error && error.message === "Invalid pagination parameters") return NextResponse.json({ error: error.message }, { status: 400 });
       throw error;
     }
     return NextResponse.json(board, { headers: { "cache-control": "no-store" } });
@@ -22,7 +22,7 @@ export function GET(request: Request) {
     // 数据库读失败时不能让调用方把异常当成空数据，明确降级成 503 且不留缓存。
     logFailure("deals_read_failed", error);
     return NextResponse.json(
-      { error: "数据库不可读" },
+      { error: "Database unavailable" },
       { status: 503, headers: { "cache-control": "no-store" } },
     );
   }
