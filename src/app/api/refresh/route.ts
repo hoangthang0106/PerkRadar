@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     const ip = clientIp(request.headers);
     if (!consumeManualAttempt(ip, Date.now())) {
       logEvent("manual_refresh_rejected", { code: "rate_limit", status: 429 });
-      return json({ error: "手动刷新过于频繁，请稍后再试" }, 429, { "retry-after": "60" });
+      return json({ error: "Refresh requests are too frequent. Please try again later." }, 429, { "retry-after": "60" });
     }
     const board = await runRefresh({ trigger: "manual" });
     logEvent("manual_refresh_ok", {
@@ -45,6 +45,6 @@ export async function POST(request: Request) {
       return json({ error: error.message }, status, headers);
     }
     logFailure("manual_refresh_failed", error);
-    return json({ error: "刷新失败" }, 500);
+    return json({ error: "Refresh failed" }, 500);
   }
 }
