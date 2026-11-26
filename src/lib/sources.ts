@@ -20,7 +20,7 @@ function readJinaApiKey(): string {
     return readFileSync(file, "utf8").trim();
   } catch {
     keyFileFailed = true;
-    logEvent("jina_key_file_unreadable", { warning: "无法读取密钥文件，匿名请求可能受限" });
+    logEvent("jina_key_file_unreadable", { warning: "Could not read API key file; anonymous requests may be limited" });
     return "";
   }
 }
@@ -46,7 +46,7 @@ export async function loadSource(
   source: SourceDef,
   ctx: { fetchImpl: FetchLike; signal: AbortSignal; now: number },
 ): Promise<{ items: ParsedItem[]; finalUrl: string }> {
-  if (process.env.PERKRADAR_OFFLINE === "1") throw new Error("离线模式：未访问来源");
+  if (process.env.PERKRADAR_OFFLINE === "1") throw new Error("Offline mode: sources were not fetched");
   const headers: Record<string, string> = { accept: "text/markdown" };
   const key = source.id === "linuxdo" ? readJinaApiKey() : "";
   if (key) headers.Authorization = `Bearer ${key}`;
@@ -61,7 +61,7 @@ export async function loadSource(
     try {
       payload = JSON.parse(fetched.body);
     } catch {
-      throw new Error("Epic 响应不是 JSON");
+      throw new Error("Epic response was not valid JSON");
     }
     items = parseEpicFreeGames(payload, ctx.now);
   } else {
