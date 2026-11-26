@@ -58,6 +58,9 @@ export function diagnosticLabel(input: string): string {
     "数据库不可读": "Database unavailable",
     "进程中断": "Process interrupted",
     "离线模式：未访问来源": "Offline mode: sources were not fetched",
+    "拒绝跨站刷新": "Cross-site refresh request rejected",
+    "请求无效": "Invalid request",
+    "来源无效": "Invalid request origin",
   };
   if (exact[input]) return exact[input];
   let result = input;
@@ -69,12 +72,17 @@ export function diagnosticLabel(input: string): string {
     "异次元软件世界": "iPlaySoft · Software",
   })) result = result.replaceAll(source, name);
 
-  return result
+  result = result
     .replace(/连续失败\s*(\d+)\s*轮/g, (_, count: string) => `${count} consecutive failures`)
     .replace(/解析条数从\s*(\d+)\s*降到\s*(\d+)/g, (_, from: string, to: string) => `parsed item count dropped from ${from} to ${to}`)
     .replace(/解析条数骤降至\s*(\d+)/g, (_, count: string) => `parsed item count dropped to ${count}`)
     .replace(/本轮成功但解析到\s*0\s*条/g, "successful collection, but no items were parsed")
     .replaceAll("解析结构异常", "unexpected feed structure")
     .replaceAll("抓取失败", "source collection failed")
-    .replaceAll("超时", "timed out");
+    .replaceAll("超时", "timed out")
+    .replaceAll("未能解析 RSS/Atom", "Unable to parse RSS/Atom feed");
+  // The full upstream diagnostic remains available in container logs.
+  return /[一-龥]/.test(result)
+    ? "An upstream source returned an error; check container logs."
+    : result;
 }
