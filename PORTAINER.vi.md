@@ -6,7 +6,7 @@ Repository của bạn: https://github.com/hoangthang0106/PerkRadar
 
 - **Host port = container port = 18897**; tiến trình Node thực sự lắng nghe 18897 qua biến `PORT`.
 - **Một container duy nhất:** `perkradar`; không Caddy/FlareSolverr/database phụ.
-- **Image:** `local/perkradar-itmanager:18897`. Đây là tên image **bạn cần build trên đúng Docker endpoint trước khi Deploy Git Stack**, không phải image có sẵn trên Docker Hub.
+- **Image:** `local/perkradar-itmanager:18897`. Compose chính sẽ build từ `Dockerfile` của fork khi endpoint hỗ trợ; Compose dự phòng dùng image bạn tự build qua Images/CLI.
 - **Dữ liệu:** volume tên `perkradar_data` gắn vào `/data`, chứa SQLite.
 - **Đăng nhập:** dùng **`PERKRADAR_ACCESS_TOKEN` ít nhất 32 ký tự** (không có tài khoản username/password riêng).
 - Chỉ dùng trên LAN đáng tin cậy. HTTP LAN đặt `PERKRADAR_SECURE_COOKIE=0` để login được; **không publish ra Internet**.
@@ -21,26 +21,32 @@ docker ps -aq | xargs -r docker inspect --format '{{.Name}} {{json .HostConfig.P
 
 Chú ý: PhoneInfoga từng được *dự kiến* cấu hình `18897:18897` trong fork khác. Nếu PhoneInfoga đang chạy port đó, không Deploy PerkRadar đè lên.
 
-## 3. QUAN TRỌNG — Build image từ fork (một lần)
+## 3. Cách cài nhanh nhất — Git Stack sẽ tự build
 
-Repository PerkRadar gốc **không cung cấp image được khuyến nghị để pull trực tiếp**; Dockerfile có sẵn ở thư mục gốc.
+**Đã sửa lỗi pull image ngày 26/11/2026:** `docker-compose.yml` dùng `build: context: .` cùng `pull_policy: build` để Docker Compose build image từ Dockerfile **ngay trong fork**, thay vì pull một image `local/perkradar-itmanager` không tồn tại trên Docker Hub.
 
-Portainer có hạn chế build trực tiếp bằng Compose Git Stack khi Docker endpoint từ xa (xem https://docs.portainer.io/faqs/known-issues/docker-compose-files-including-build-steps-fail ). Vì vậy Compose trong fork đã **bỏ `build:`** để không đụng lỗi này.
+**Với Stack Git `perkradar` đã tạo và báo lỗi "pull access denied":**
+1. Vào **Stacks → perkradar → Pull and redeploy** để lấy bản Compose mới.
+2. Kiểm tra các Environment variables `LAN_IP`, `PERKRADAR_ACCESS_TOKEN` vẫn còn.
+3. Không xóa stack, không xóa `perkradar_data`. Lần build đầu phải tải Node/npm dependencies nên lâu hơn deploy image có sẵn.
+4. Nếu báo lỗi "compose build operation failed / build unsupported", Docker endpoint của bạn đang thuộc nhóm Portainer không build Git Stack được. Làm **phương án dự phòng** dưới đây.
 
-Cách 1 — **Portainer giao diện web**:
-1. Mở **Images → Build a new image** trên **đúng Docker endpoint** cần cài.
-2. **Image name:** `local/perkradar-itmanager:18897`.
-3. Chọn cách build từ **URL**.
-4. **Repository/Git URL:** `https://github.com/hoangthang0106/PerkRadar.git#main`.
-5. **Dockerfile path:** `Dockerfile` (nếu Portainer hiển thị trường này).
-6. Nhấn **Build the image**. Kiểm tra Images có `local/perkradar-itmanager:18897` trước khi tạo Stack.
+### Dự phòng khi Portainer Agent không build được
 
-Cách 2 — **Docker CLI trên đúng host Docker** (dự phòng nếu Portainer Images không hỗ trợ URL Git):
+Portainer đã ghi nhận một số môi trường Agent từ phiên bản 2.29.2 không hỗ trợ build qua Git Stack; tài liệu: https://docs.portainer.io/faqs/known-issues/docker-compose-files-including-build-steps-fail
+
+Bước A: build image từ fork trong **Images → Build a new image → URL**, cùng đúng Docker endpoint:
+- Image name: `local/perkradar-itmanager:18897`.
+- URL: `https://github.com/hoangthang0106/PerkRadar.git#main`.
+- Dockerfile path: `Dockerfile` (nếu có ô này).
+
+Nếu Portainer Image Builder URL không được, chạy trên Docker host:
+
 ```sh
 docker build --pull -t local/perkradar-itmanager:18897 'https://github.com/hoangthang0106/PerkRadar.git#main'
 ```
 
-Vì đây là Next.js, build cần tải package npm và có thể mất tài nguyên; trên Docker host cần đủ RAM, dung lượng đĩa và kết nối Internet. Không cần tạo thêm container khi ứng dụng chạy.
+Bước B: sửa **Compose path** trong **Stacks → perkradar → Edit stack settings** (hoặc tạo lại Git Stack chỉ khi chưa chạy và xác minh volume) từ `docker-compose.yml` sang **`docker-compose-prebuilt.yml`**, rồi redeploy. File dự phòng dùng image local đã build, không có `build:`. Không phải đăng nhập Docker Hub.
 
 ## 4. Tạo Portainer Git Stack từ fork
 
@@ -83,7 +89,7 @@ Lưu ý: ví dụ `127.0.0.1` này chỉ chạy khi port được bind loopback;
 - Database SQLite trong volume `perkradar_data`; không xóa volume khi thay Stack. Sao lưu SQLite nhất quán trước khi nâng cấp.
 - Dấu yêu thích/đã nhận lưu trong localStorage của **trình duyệt**, không tự đồng bộ giữa điện thoại và máy tính.
 - Image build từ commit ở thời điểm bạn build. Khi code fork thay đổi, **cần build lại image rồi redeploy**, không tự cập nhật chỉ bằng Git Stack.
-- Nếu Portainer Git Stack báo `image not found`, nghĩa là **chưa build image đúng tag trên đúng endpoint**. Nếu báo `reference not found`, kiểm tra reference đúng **refs/heads/main** (không phải master).
+- Nếu file `docker-compose-prebuilt.yml` báo `pull access denied`, nghĩa là image local chưa được build đúng tag trên **đúng endpoint**. Nếu báo `reference not found`, kiểm tra reference đúng **refs/heads/main** (không phải master).
 - Mở truy cập công cộng cần HTTPS và cấu hình bảo mật khác, không được dùng trực tiếp cấu hình HTTP LAN này.
 
-**Trạng thái:** GitHub đã có Compose một container và tài liệu cài; chưa chạy Portainer thực tế và chưa kiểm tra port 18897 trên máy.
+**Trạng thái:** GitHub đã có Compose tự build và Compose dự phòng một container; chưa chạy Portainer thực tế, chưa xác minh thành công build hay port 18897 trên máy.
