@@ -25,6 +25,7 @@ import { filterDeals, type DealSort } from "@/lib/filter-deals";
 import { normalizeBoardState } from "@/lib/board-view";
 import { CATEGORIES, type BoardState, type Category, type DealDTO, type SourceStatus } from "@/lib/types";
 import "./deal-board.css";
+import { categoryLabel, sourceLabel } from "@/lib/ui-labels";
 
 const emptyPersonal: Personal = { claimed: [], favorites: [] };
 type Alert = { text: string; role: "status" | "alert"; testId: string };
@@ -38,23 +39,23 @@ function readError(data: unknown): string | null {
 function formatSourceQuality(source: SourceStatus): string {
   const quality = source.quality;
   if (!quality) return "";
-  if (quality.warning) return `；质量提醒：${quality.warning}`;
-  if (quality.consecutiveFailures && quality.consecutiveFailures >= 3) return `；连续失败 ${quality.consecutiveFailures} 轮`;
-  if (quality.structureAnomaly) return "；解析结构异常";
-  if (quality.countDrop) return "；解析条数骤降";
+  if (quality.warning) return `; quality warning: ${quality.warning}`;
+  if (quality.consecutiveFailures && quality.consecutiveFailures >= 3) return `; ${quality.consecutiveFailures} consecutive failures`;
+  if (quality.structureAnomaly) return "; unexpected feed structure";
+  if (quality.countDrop) return "; sudden drop in parsed items";
   return "";
 }
 
 function formatSourceOutcome(source: SourceStatus): string {
-  const diagnostic = source.diagnostic === "missing_key" ? "；未配置可用 Jina key，匿名请求可能受限" : source.diagnostic === "rate_limited" ? "；来源限流，正在退避" : source.diagnostic === "circuit_open" ? "；熔断等待恢复" : source.diagnostic === "structure_anomaly" ? "；上游结构异常" : "";
+  const diagnostic = source.diagnostic === "missing_key" ? "; Jina key missing; anonymous requests may be rate limited" : source.diagnostic === "rate_limited" ? "; rate limited, backing off" : source.diagnostic === "circuit_open" ? "; waiting for recovery" : source.diagnostic === "structure_anomaly" ? "; unexpected upstream response" : "";
   const quality = formatSourceQuality(source) + diagnostic;
-  if (source.lastOk == null) return `尚未抓取${quality}`;
-  if (source.lastOk) return `成功 ${source.lastFetched ?? 0} 条，新增 ${source.lastInserted ?? 0} 条${quality}`;
-  return `失败（${source.lastError ?? "原因未记录"}），下一轮重试${quality}`;
+  if (source.lastOk == null) return `Not fetched yet${quality}`;
+  if (source.lastOk) return `Success: ${source.lastFetched ?? 0} fetched, ${source.lastInserted ?? 0} new${quality}`;
+  return `Failed (${source.lastError ?? "reason not recorded"}); retrying next run${quality}`;
 }
 
 function formatFailure(failure: { sourceName: string; error: string }): string {
-  return `${failure.sourceName}（${failure.error}）`;
+  return `${failure.sourceName} (${failure.error})`;
 }
 
 /**
@@ -90,7 +91,7 @@ export function DealBoard({ initial, authEnabled = false }: { initial: BoardStat
     try {
       setShowAllLeads(loadShowAll(localStorage));
       setPersonal(loadPersonal(localStorage));
-    } catch { setStorageError("浏览器存储不可用，本次操作仅保留在当前页面。"); }
+    } catch { setStorageError("Browser storage unavailable; changes last only on this page."); }
     setPersonalReady(true);
     // 另一个标签页改动本机状态后，重新读取，避免旧内存覆盖新值。
     const onStorage = (event: StorageEvent) => {
@@ -139,7 +140,7 @@ export function DealBoard({ initial, authEnabled = false }: { initial: BoardStat
       setStorageError(null);
     } catch {
       // 隐私模式或配额满时，状态和存储必须显式说明不一致，而不是静默成功。
-      setStorageError("收藏和已领没能写入这台浏览器（可能是隐私模式或存储已满），本次改动只在当前页面有效。");
+      setStorageError("Could not save favorites or claimed items to this browser. Changes last only on this page.");
     }
   }
 
@@ -168,18 +169,18 @@ export function DealBoard({ initial, authEnabled = false }: { initial: BoardStat
       const data: unknown = await response.json().catch(() => null);
       if (response.status === 401) { window.location.assign("/login"); return; }
       if (!response.ok) {
-        setMessage(readError(data) || "刷新没有完成");
+        setMessage(readError(data) || "Refresh did not complete");
         return;
       }
       const safe = normalizeBoardState(data);
       if (!safe) {
-        setMessage("刷新结果格式异常，已保留当前列表。");
+        setMessage("Invalid refresh result; current list kept.");
         return;
       }
       setBoard({ ...safe, refreshInProgress: false });
       setPollError(false);
     } catch {
-      setMessage("网络异常，刷新没有完成");
+      setMessage("Network error; refresh did not complete.");
     } finally {
       setRefreshing(false);
     }
@@ -222,20 +223,20 @@ export function DealBoard({ initial, authEnabled = false }: { initial: BoardStat
   const activeFilters = [sourceId !== "all", category !== "all", query.trim().length > 0, onlyNew, sort !== "newest"].filter(Boolean).length;
 
   const statusItems = [
-    { label: "更新", value: board.lastUpdatedLabel ? `${board.lastUpdatedLabel} 北京时间` : "尚未更新", testId: "status-update" },
-    { label: "来源", value: `${board.sourceHealth.ok}/${board.sourceHealth.total}`, testId: "status-sources" },
-    { label: "已收录", value: String(board.activeCount), testId: "status-active" },
-    { label: "本轮新增", value: String(board.newCount), testId: "status-new" },
-    { label: "下次更新", value: board.nextRefreshLabel ? `${board.nextRefreshLabel} 北京时间` : "尚未排期", testId: "status-next" },
+    { label: "Last updated", value: board.lastUpdatedLabel ? `${board.lastUpdatedLabel} (UTC+8)` : "Not yet", testId: "status-update" },
+    { label: "Sources OK", value: `${board.sourceHealth.ok}/${board.sourceHealth.total}`, testId: "status-sources" },
+    { label: "Active items", value: String(board.activeCount), testId: "status-active" },
+    { label: "New this run", value: String(board.newCount), testId: "status-new" },
+    { label: "Next update", value: board.nextRefreshLabel ? `${board.nextRefreshLabel} (UTC+8)` : "Not scheduled", testId: "status-next" },
   ];
 
   const alerts: Alert[] = [];
-  if (board.freshness?.stale) alerts.push({ text: "数据已过时，请检查抓取状态。", role: "status", testId: "stale" });
-  if (pollError) alerts.push({ text: "数据暂时不可用，显示的是上次成功读取的内容；恢复后会自动更新。", role: "status", testId: "poll-error" });
+  if (board.freshness?.stale) alerts.push({ text: "Data may be outdated. Check source collection status.", role: "status", testId: "stale" });
+  if (pollError) alerts.push({ text: "Live data is temporarily unavailable. Showing the last results; this page will update when service recovers.", role: "status", testId: "poll-error" });
   if (storageError) alerts.push({ text: storageError, role: "alert", testId: "storage-error" });
   if (message) alerts.push({ text: message, role: "alert", testId: "refresh-message" });
-  if (board.anomalies?.length) alerts.push({ text: `数据提示：${board.anomalies.join("；")}`, role: "status", testId: "anomalies" });
-  if (board.failures.length) alerts.push({ text: `未能抓取，下一轮重试：${board.failures.map(formatFailure).join("、")}`, role: "status", testId: "failures" });
+  if (board.anomalies?.length) alerts.push({ text: `Data notices: ${board.anomalies.join("; ")}`, role: "status", testId: "anomalies" });
+  if (board.failures.length) alerts.push({ text: `Sources failed; will retry: ${board.failures.map(formatFailure).join(", ")}`, role: "status", testId: "failures" });
 
   const categoryCounts = new Map<string, number>();
   for (const deal of board.deals) {
@@ -244,18 +245,18 @@ export function DealBoard({ initial, authEnabled = false }: { initial: BoardStat
 
   const emptyMessage =
     category === "favorites" && !personalReady
-      ? "正在读取这台浏览器里的收藏。"
+      ? "Loading favorites from this browser."
       : pollError && board.deals.length === 0
-        ? "数据暂时不可用，还无法读取条目；恢复后会自动更新，这里不会填入示例优惠。"
+        ? "Data temporarily unavailable; results will update after recovery. No sample deals are shown."
         : board.deals.length === 0
           ? board.lastUpdatedAt
-            ? "这一轮没有已收录的条目。失败的来源会在下一轮重试，这里不会填入示例优惠。"
-            : "服务端还没有完成抓取。空列表是真实状态，不会填入示例优惠。"
+            ? "No items collected this run. Failed sources will retry; no sample deals are shown."
+            : "The server has not finished collecting. The empty list reflects actual results."
           : hiddenOtherCount > 0 && visible.length === 0
-            ? "当前条件下只剩已隐藏的「其他」线索；打开「查看全部线索」即可查看。"
-            : "没有符合当前筛选的条目。";
+            ? "Only hidden Other items match. Turn on Show all items."
+            : "No items match the current filters.";
 
-  if (!mounted) return <div className="perk-board" data-testid="board-root"><div className="board-loading" role="status" data-testid="loading">正在打开…</div></div>;
+  if (!mounted) return <div className="perk-board" data-testid="board-root"><div className="board-loading" role="status" data-testid="loading">Opening…</div></div>;
 
   return (
     <div className="perk-board" data-testid="board-root">
@@ -264,101 +265,101 @@ export function DealBoard({ initial, authEnabled = false }: { initial: BoardStat
           <Link className="demo-brand" href="/" data-testid="brand"><Radar aria-hidden="true" />PerkRadar</Link>
           <div className="demo-header-actions">
             <Button className="board-refresh" data-testid="refresh" onClick={refresh} disabled={busy} aria-busy={busy}>
-              <RefreshCw aria-hidden="true" />{busy ? "刷新中" : "立即刷新"}
+              <RefreshCw aria-hidden="true" />{busy ? "Refreshing…" : "Refresh now"}
             </Button>
             {authEnabled ? (
-              <Button variant="ghost" data-testid="sign-out" onClick={signOut}><LogOut aria-hidden="true" />退出</Button>
+              <Button variant="ghost" data-testid="sign-out" onClick={signOut}><LogOut aria-hidden="true" />Sign out</Button>
             ) : null}
           </div>
         </header>
 
         <div className="board-alert-strip" data-testid="alerts" aria-live="polite">
-          <span className="board-lead-note" data-testid="lead-note"><ShieldCheck aria-hidden="true" />公开订阅源线索聚合，只表示抓到了这条线索；未核实活动是否仍有效、领取条件或能否领取。</span>
+          <span className="board-lead-note" data-testid="lead-note"><ShieldCheck aria-hidden="true" />Public-feed listings are not verified for validity, eligibility or availability.</span>
           {alerts.map((alert) => <p key={alert.testId} className="board-alert" role={alert.role} data-testid={alert.testId}>{alert.text}</p>)}
         </div>
 
         <div className="demo-layout">
-          <aside className="demo-sidebar" aria-label="搜索与筛选" data-testid="sidebar">
+          <aside className="demo-sidebar" aria-label="Search and filters" data-testid="sidebar">
             <button className="demo-filter-toggle" type="button" aria-expanded={mobileFiltersOpen} aria-controls="demo-filter-body" data-testid="filter-toggle" onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}>
-              <SlidersHorizontal aria-hidden="true" />搜索与筛选{activeFilters ? <span className="demo-filter-count">{activeFilters}</span> : null}<ChevronDown aria-hidden="true" />
+              <SlidersHorizontal aria-hidden="true" />Search and filters{activeFilters ? <span className="demo-filter-count">{activeFilters}</span> : null}<ChevronDown aria-hidden="true" />
             </button>
             <div id="demo-filter-body" className="demo-filter-body" data-open={mobileFiltersOpen ? "true" : "false"}>
-              <div className="demo-sidebar-head"><h2>筛选</h2><Button className="demo-reset" variant="ghost" size="sm" data-testid="reset" onClick={resetFilters}>重置</Button></div>
+              <div className="demo-sidebar-head"><h2>Filters</h2><Button className="demo-reset" variant="ghost" size="sm" data-testid="reset" onClick={resetFilters}>Reset</Button></div>
 
               <form className="demo-search" role="search" onSubmit={(event) => event.preventDefault()}>
-                <label className="sr-only" htmlFor="deal-search">搜索标题</label>
-                <Input id="deal-search" type="search" data-testid="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索工具、软件或关键词…" />
-                <Button type="submit" size="icon" aria-label="搜索线索"><Search aria-hidden="true" /></Button>
+                <label className="sr-only" htmlFor="deal-search">Search titles</label>
+                <Input id="deal-search" type="search" data-testid="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search software, tools or keywords…" />
+                <Button type="submit" size="icon" aria-label="Search deals"><Search aria-hidden="true" /></Button>
               </form>
 
-              <section className="demo-filter-group" aria-label="排序">
-                <h3>排序</h3>
-                <select className="board-sort" data-testid="sort" aria-label="排序方式" value={sort} onChange={(event) => setSort(event.target.value as DealSort)}>
-                  <option value="newest">最新发布</option>
-                  <option value="expiring">即将到期</option>
+              <section className="demo-filter-group" aria-label="Sort">
+                <h3>Sort</h3>
+                <select className="board-sort" data-testid="sort" aria-label="Sort order" value={sort} onChange={(event) => setSort(event.target.value as DealSort)}>
+                  <option value="newest">Newest first</option>
+                  <option value="expiring">Expiring soon</option>
                 </select>
               </section>
 
-              <section className="demo-filter-group" aria-label="来源筛选">
-                <h3>来源</h3>
+              <section className="demo-filter-group" aria-label="Filter by source">
+                <h3>Sources</h3>
                 <div className="demo-filter-row">
-                  <Pill pressed={sourceId === "all"} testId="source-chip" onClick={() => setSourceId("all")}>全部来源<span>{board.activeCount}</span></Pill>
+                  <Pill pressed={sourceId === "all"} testId="source-chip" onClick={() => setSourceId("all")}>All sources<span>{board.activeCount}</span></Pill>
                   {board.sources.map((source) => (
-                    <Pill key={source.id} pressed={sourceId === source.id} testId="source-chip" onClick={() => setSourceId(source.id)}>{source.name}<span>{source.activeCount}</span></Pill>
+                    <Pill key={source.id} pressed={sourceId === source.id} testId="source-chip" onClick={() => setSourceId(source.id)}>{sourceLabel(source.id, source.name)}<span>{source.activeCount}</span></Pill>
                   ))}
                 </div>
               </section>
 
-              <section className="demo-filter-group" aria-label="分类筛选">
-                <h3>分类</h3>
+              <section className="demo-filter-group" aria-label="Filter by category">
+                <h3>Categories</h3>
                 <div className="demo-filter-row">
-                  <Pill pressed={category === "all"} testId="category-chip" onClick={() => setCategory("all")}>全部</Pill>
+                  <Pill pressed={category === "all"} testId="category-chip" onClick={() => setCategory("all")}>All</Pill>
                   {CATEGORIES.map((item) => (
-                    <Pill key={item} pressed={category === item} testId="category-chip" onClick={() => setCategory(item)}>{item}<span>{categoryCounts.get(item) ?? 0}</span></Pill>
+                    <Pill key={item} pressed={category === item} testId="category-chip" onClick={() => setCategory(item)}>{categoryLabel(item)}<span>{categoryCounts.get(item) ?? 0}</span></Pill>
                   ))}
-                  <Pill pressed={category === "favorites"} testId="category-chip" onClick={() => setCategory(category === "favorites" ? "all" : "favorites")}><Bookmark aria-hidden="true" />我的收藏<span>{personalReady ? favoriteSet.size : 0}</span></Pill>
+                  <Pill pressed={category === "favorites"} testId="category-chip" onClick={() => setCategory(category === "favorites" ? "all" : "favorites")}><Bookmark aria-hidden="true" />My favorites<span>{personalReady ? favoriteSet.size : 0}</span></Pill>
                 </div>
               </section>
 
-              <section className="board-status" aria-label="运行状态">
-                <h3>运行状态</h3>
+              <section className="board-status" aria-label="Collection status">
+                <h3>Status</h3>
                 <dl className="board-status-list" data-testid="stats">
                   {statusItems.map((item) => <StatusItem key={item.label} label={item.label} value={item.value} testId={item.testId} />)}
                 </dl>
               </section>
 
               <details className="board-source-results" data-testid="source-results">
-                <summary><Info aria-hidden="true" />各来源本轮结果</summary>
+                <summary><Info aria-hidden="true" />Results by source</summary>
                 <ul>
-                  {board.sources.map((source) => <li key={source.id}>{source.name}：{formatSourceOutcome(source)}</li>)}
+                  {board.sources.map((source) => <li key={source.id}>{sourceLabel(source.id, source.name)}: {formatSourceOutcome(source)}</li>)}
                 </ul>
               </details>
-              <p className="board-footer-note" data-testid="footer-note">全部内容来自公开订阅源，不是逐条认证的领取清单。</p>
+              <p className="board-footer-note" data-testid="footer-note">All items come from public feeds and have not been individually verified.</p>
             </div>
           </aside>
 
           <main className="demo-content" data-testid="content">
             <div className="demo-results-heading" data-testid="results-heading">
-              <h1>信息列表</h1>
-              <span className="board-results-count" role="status" data-testid="visible-count">{visible.length} 条线索</span>
+              <h1>Deals and offers</h1>
+              <span className="board-results-count" role="status" data-testid="visible-count">{visible.length} items</span>
               {hiddenOtherCount > 0 ? (
-                <span className="board-hidden-note" role="status" data-testid="hidden-note">已隐藏 {hiddenOtherCount} 条「其他」线索</span>
+                <span className="board-hidden-note" role="status" data-testid="hidden-note">Hidden: {hiddenOtherCount} Other items</span>
               ) : null}
               <div className="demo-results-actions">
                 <label className="demo-new-toggle demo-results-toggle">
                   <input type="checkbox" data-testid="show-all" checked={showAllLeads} onChange={(event) => saveShowAll(event.target.checked)} />
-                  <span className="demo-switch" aria-hidden="true" />查看全部线索
+                  <span className="demo-switch" aria-hidden="true" />Show all items
                 </label>
                 <label className="demo-new-toggle demo-results-toggle">
                   <input type="checkbox" data-testid="only-new" checked={onlyNew} onChange={(event) => setOnlyNew(event.target.checked)} />
-                  <span className="demo-switch" aria-hidden="true" />只看新增
+                  <span className="demo-switch" aria-hidden="true" />New items only
                 </label>
               </div>
             </div>
 
-            {waitingForFirst ? <p className="board-empty-note" role="status">正在进行首次抓取…</p> : null}
+            {waitingForFirst ? <p className="board-empty-note" role="status">Collecting deals for the first time…</p> : null}
 
-            <section className="demo-cards" aria-label="优惠列表" data-testid="cards">
+            <section className="demo-cards" aria-label="Deals list" data-testid="cards">
               {visible.slice(0, displayLimit).map((deal) => (
                 <DealCard
                   key={deal.canonicalUrl}
@@ -371,21 +372,21 @@ export function DealBoard({ initial, authEnabled = false }: { initial: BoardStat
               ))}
             </section>
 
-            <p role="status" data-testid="display-range">显示 {Math.min(displayLimit, visible.length)} / {visible.length} 条匹配线索（已载入 {board.deals.length} 条）</p>
-            {visible.length > displayLimit ? <Button onClick={() => setDisplayLimit((value) => value + 100)}>再显示 100 条</Button> : null}
+            <p role="status" data-testid="display-range">Showing {Math.min(displayLimit, visible.length)} / {visible.length} matches ({board.deals.length} loaded)</p>
+            {visible.length > displayLimit ? <Button onClick={() => setDisplayLimit((value) => value + 100)}>Show 100 more</Button> : null}
             {visible.length === 0 ? (
               <div className="demo-empty" data-testid="empty-state" role="status">
                 <Search aria-hidden="true" />
-                <h2>没有可显示的条目</h2>
+                <h2>No items to display</h2>
                 <p className="board-empty-note">{emptyMessage}</p>
-                <Button variant="outline" onClick={resetFilters}>清除筛选</Button>
+                <Button variant="outline" onClick={resetFilters}>Clear filters</Button>
               </div>
             ) : null}
 
             <footer className="demo-footer" data-testid="footer">
-              <p className="board-footer-note">默认显示全部分类；可取消「查看全部线索」来隐藏「其他」，搜索时始终包含其他分类。</p>
-              <p className="board-footer-note">没有到期时间的条目，从发布时刻起保留 7 天；正好满 7 天仍保留，再早 1 毫秒淘汰。有到期时间的，到点即下架。</p>
-              <p className="board-footer-note">本轮新增只包含最近一轮成功写入的新链接。某一来源失败时，不会改写它已经抓到的标题和时间。</p>
+              <p className="board-footer-note">All categories are shown by default. Disable Show all items to hide Other; searching always includes Other.</p>
+              <p className="board-footer-note">Items without expiry dates remain for seven days after publication. Expired items are removed when their deadline passes.</p>
+              <p className="board-footer-note">New items were first recorded in the latest successful run. Failed sources do not overwrite saved entries.</p>
             </footer>
           </main>
         </div>
@@ -411,40 +412,40 @@ function DealCard({ deal, claimed, favorite, onClaim, onFavorite }: { deal: Deal
     <article className="demo-deal" data-claimed={claimed ? "true" : "false"} data-new={deal.isNew ? "true" : "false"} data-testid="deal-card" aria-label={deal.title}>
       <div className="deal-heading">
         <h2 data-testid="deal-title">{deal.title}</h2>
-        <Button variant="ghost" className="demo-favorite" size="icon" data-testid="favorite" aria-label={`${favorite ? "取消收藏" : "收藏"}：${deal.title}`} aria-pressed={favorite} onClick={onFavorite}>
-          <Bookmark aria-hidden="true" /><span>{favorite ? "已收藏" : "收藏"}</span>
+        <Button variant="ghost" className="demo-favorite" size="icon" data-testid="favorite" aria-label={`${favorite ? "Remove from favorites" : "Add to favorites"}: ${deal.title}`} aria-pressed={favorite} onClick={onFavorite}>
+          <Bookmark aria-hidden="true" /><span>{favorite ? "Saved" : "Save"}</span>
         </Button>
       </div>
 
       <div className="deal-summary">
-        <span>摘要 · 原文</span>
-        <p data-testid="deal-summary">{deal.summary || "原文没有提供摘要。"}</p>
+        <span>Summary · Original</span>
+        <p data-testid="deal-summary">{deal.summary || "The original source did not provide a summary."}</p>
       </div>
 
       <details className="deal-original" data-testid="deal-original">
-        <summary>原文信息</summary>
+        <summary>Original source details</summary>
         <div className="board-original-meta" data-testid="deal-meta">
-          {deal.publishedLabel ? <span><Clock3 aria-hidden="true" />发布 {deal.publishedLabel}</span> : null}
-          {deal.expiresLabel ? <span><Clock3 aria-hidden="true" />到期 {deal.expiresLabel}</span> : null}
-          <span>来源 {deal.sourceName}</span>
-          <span>分类 {deal.category}</span>
+          {deal.publishedLabel ? <span><Clock3 aria-hidden="true" />Published {deal.publishedLabel}</span> : null}
+          {deal.expiresLabel ? <span><Clock3 aria-hidden="true" />Expires {deal.expiresLabel}</span> : null}
+          <span>Source: {sourceLabel(deal.sourceId, deal.sourceName)}</span>
+          <span>Category: {categoryLabel(deal.category)}</span>
         </div>
       </details>
 
       <div className="deal-tags">
-        {deal.isNew ? <span className="deal-fresh" data-testid="deal-new">本轮新增</span> : null}
-        <Badge variant="secondary" data-testid="deal-category">{deal.category}</Badge>
-        <Badge variant="outline" data-testid="deal-source">{deal.sourceName}</Badge>
-        {deal.expiresLabel ? <Badge variant={deal.expiresSoon ? "destructive" : "outline"} data-testid="deal-expiry">{deal.expiresSoon ? "临期" : "到期"} {deal.expiresLabel}</Badge> : null}
-        {claimed ? <span className="deal-claimed-state" data-testid="deal-claimed">已标记已领</span> : null}
+        {deal.isNew ? <span className="deal-fresh" data-testid="deal-new">New this run</span> : null}
+        <Badge variant="secondary" data-testid="deal-category">{categoryLabel(deal.category)}</Badge>
+        <Badge variant="outline" data-testid="deal-source">{sourceLabel(deal.sourceId, deal.sourceName)}</Badge>
+        {deal.expiresLabel ? <Badge variant={deal.expiresSoon ? "destructive" : "outline"} data-testid="deal-expiry">{deal.expiresSoon ? "Ending soon" : "Expires"} {deal.expiresLabel}</Badge> : null}
+        {claimed ? <span className="deal-claimed-state" data-testid="deal-claimed">Marked claimed</span> : null}
       </div>
 
       <div className="deal-actions">
         <Button asChild>
-          <a href={deal.url} target="_blank" rel="noopener noreferrer" data-testid="open-original">打开原文<ArrowUpRight data-icon="inline-end" /></a>
+          <a href={deal.url} target="_blank" rel="noopener noreferrer" data-testid="open-original">Open original<ArrowUpRight data-icon="inline-end" /></a>
         </Button>
         <Button variant="outline" data-testid="claim" aria-pressed={claimed} onClick={onClaim}>
-          <Check data-icon="inline-start" />{claimed ? "撤销已领" : "标记已领"}
+          <Check data-icon="inline-start" />{claimed ? "Undo claimed" : "Mark claimed"}
         </Button>
       </div>
     </article>
