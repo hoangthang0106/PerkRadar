@@ -6,7 +6,7 @@ import type { BoardState } from "./types";
 /** The session cookie expired or the token changed; the page should send the person to /login. */
 export class AuthExpiredError extends Error {
   constructor() {
-    super("登录已过期，请重新登录");
+    super("Session expired. Please sign in again.");
     this.name = "AuthExpiredError";
   }
 }
@@ -18,15 +18,15 @@ export async function readBoard(signal: AbortSignal): Promise<BoardState> {
   for (;;) {
     const response = await fetch(`/api/deals?limit=1000&offset=${offset}`, { cache: "no-store", signal });
     if (response.status === 401) throw new AuthExpiredError();
-    if (!response.ok) throw new Error("数据暂时不可用");
+    if (!response.ok) throw new Error("Data is temporarily unavailable.");
     const page = normalizeBoardState(await response.json());
-    if (!page) throw new Error("看板数据格式异常");
+    if (!page) throw new Error("Invalid dashboard response format.");
     if (!board) board = { ...page, deals: [] };
-    if (page.lastUpdatedAt !== board.lastUpdatedAt) throw new Error("抓取已更新，下一轮重新读取");
+    if (page.lastUpdatedAt !== board.lastUpdatedAt) throw new Error("Collection updated. Reloading on the next poll.");
     board.deals.push(...page.deals);
     offset += page.deals.length;
     if (!page.pagination?.hasMore) break;
-    if (!page.deals.length || offset >= BOARD_MAX_ITEMS) throw new Error("看板超过安全上限，请使用分页 API");
+    if (!page.deals.length || offset >= BOARD_MAX_ITEMS) throw new Error("Dashboard exceeds the safe limit. Use the paginated API.");
   }
   board.pagination = { offset: 0, limit: board.deals.length, total: board.deals.length, hasMore: false };
   board.sources = board.sources.map((source) => ({ ...source, activeCount: board!.deals.filter((deal) => deal.sourceId === source.id).length }));
