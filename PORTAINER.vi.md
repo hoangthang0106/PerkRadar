@@ -2,6 +2,23 @@
 
 Repository của bạn: https://github.com/hoangthang0106/PerkRadar
 
+## English mặc định — cập nhật ngày 26/11/2026
+
+**Fork PerkRadar này đã được chỉnh sang giao diện English mặc định**, gồm:
+- `<html lang="en">`, tiêu đề/description trang, đăng nhập, đăng xuất, dashboard, tìm kiếm, lọc danh mục, sắp xếp, nhãn nguồn và nút bấm.
+- Trạng thái thu thập, cảnh báo, một số lỗi xác thực và API hiển thị bằng tiếng Anh.
+- Bộ phân loại lưu SQLite, mã source ID và dữ liệu đã thu thập **không đổi**; nhãn tiếng Anh chỉ là lớp hiển thị. Dữ liệu bài đăng từ các nguồn tiếng Trung **vẫn giữ nguyên ngôn ngữ gốc** (không có tính năng dịch tự động).
+
+**Để thay đổi hiện lên trong ứng dụng đang chạy, bắt buộc build lại image từ fork.** Bấm Restart đơn thuần không thay đổi mã nguồn bên trong image cũ.
+
+**Nếu Stack đang dùng `docker-compose.yml` của fork (có `build:` và `pull_policy: build`):**
+1. Portainer → **Stacks → perkradar → Pull and redeploy** để cập nhật commit mới.
+2. Compose cần build lại `local/perkradar-itmanager:18897` từ `Dockerfile` trong fork. Chỉ có một container; dữ liệu volume `perkradar_data` giữ nguyên.
+3. Nếu Portainer Agent không hỗ trợ build Git Stack, theo phương án dự phòng ở mục 3: build image `local/perkradar-itmanager:18897` từ `https://github.com/hoangthang0106/PerkRadar.git#main`, rồi redeploy stack với `docker-compose-prebuilt.yml`. Không xóa volume.
+4. Truy cập `http://LAN_IP:18897` và tải lại trang (Ctrl+Shift+R trên desktop, reload trên điện thoại). Giao diện hiện English.
+
+**Bảo mật:** cần `PERKRADAR_ACCESS_TOKEN` ít nhất **32 ký tự**. Token ngắn sẽ làm trang báo `Access authentication is misconfigured` và healthcheck `unhealthy` — đây là vấn đề cấu hình độc lập với ngôn ngữ. Nhập token trong Environment variables của Portainer, không commit vào GitHub. Không mở HTTP LAN trực tiếp ra Internet.
+
 ## 1. Thông số triển khai
 
 - **Host port = container port = 18897**; tiến trình Node thực sự lắng nghe 18897 qua biến `PORT`.
