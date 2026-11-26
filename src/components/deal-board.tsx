@@ -169,7 +169,8 @@ export function DealBoard({ initial, authEnabled = false }: { initial: BoardStat
       const data: unknown = await response.json().catch(() => null);
       if (response.status === 401) { window.location.assign("/login"); return; }
       if (!response.ok) {
-        setMessage(readError(data) || "Refresh did not complete");
+        const responseError = readError(data);
+        setMessage(responseError ? diagnosticLabel(responseError) : "Refresh did not complete");
         return;
       }
       const safe = normalizeBoardState(data);
