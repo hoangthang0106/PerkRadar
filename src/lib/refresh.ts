@@ -228,20 +228,20 @@ export async function runRefresh(options: RefreshOptions): Promise<BoardState> {
   const now = options.now ?? Date.now();
   const cooldownMs = options.cooldownMs ?? MANUAL_COOLDOWN_MS;
   if (!tryAcquireRefreshLock()) {
-    throw new RefreshRejected("BUSY", "已有刷新进行中");
+    throw new RefreshRejected("BUSY", "A refresh is already in progress");
   }
 
   const leaseOwner = randomUUID();
   let persistentLock = false;
   try {
   persistentLock = acquireLease("refresh", leaseOwner, Date.now(), 180_000);
-  if (!persistentLock) throw new RefreshRejected("BUSY", "另一进程已有刷新进行中");
+  if (!persistentLock) throw new RefreshRejected("BUSY", "Another process is already refreshing");
   if (options.trigger === "manual") {
     const last = getMeta("last_manual_at");
     if (last && now - Number(last) < cooldownMs) {
       throw new RefreshRejected(
         "COOLDOWN",
-        "刷新过于频繁，请稍后再试",
+        "Refresh requests are too frequent. Please try again later.",
         cooldownMs - (now - Number(last)),
       );
     }
@@ -253,11 +253,11 @@ export async function runRefresh(options: RefreshOptions): Promise<BoardState> {
       timeoutMs: options.timeoutMs ?? SOURCE_TIMEOUT_MS,
       fetchImpl: options.fetchImpl ?? fetch,
     });
-    if (!renewLease("refresh", leaseOwner, Date.now(), 180_000)) throw new Error("刷新租约已失效，丢弃本轮结果");
+    if (!renewLease("refresh", leaseOwner, Date.now(), 180_000)) throw new Error("Refresh lease expired; discarding this run");
     beginImmediate();
     let roundId = 0;
     try {
-      if (!renewLease("refresh", leaseOwner, Date.now(), 180_000)) throw new Error("刷新租约已失效，丢弃本轮结果");
+      if (!renewLease("refresh", leaseOwner, Date.now(), 180_000)) throw new Error("Refresh lease expired; discarding this run");
       roundId = insertRound(options.trigger, now);
       let totalInserted = 0;
       for (const source of loaded) totalInserted += applySource(source, roundId, now);
@@ -266,7 +266,7 @@ export async function runRefresh(options: RefreshOptions): Promise<BoardState> {
       const status = okCount === loaded.length ? "success" : okCount === 0 ? "failed" : "partial";
       finishRound(roundId, Date.now(), status);
       pruneHistory(now - HISTORY_RETENTION_MS);
-      if (!renewLease("refresh", leaseOwner, Date.now(), 180_000)) throw new Error("刷新租约已失效，回滚本轮结果");
+      if (!renewLease("refresh", leaseOwner, Date.now(), 180_000)) throw new Error("Refresh lease expired; rolling back this run");
       commit();
       logEvent("round_finished", {
         roundId,
