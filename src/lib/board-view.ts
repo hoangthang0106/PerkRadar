@@ -149,7 +149,7 @@ function normalizeFailure(value: unknown): FailureDTO | null {
   return {
     sourceId: clampText(value.sourceId, SHORT_MAX),
     sourceName: clampText(value.sourceName, SHORT_MAX),
-    error: safeDisplayText(value.error, ERROR_MAX) || "抓取失败",
+    error: safeDisplayText(value.error, ERROR_MAX) || "Source collection failed",
   };
 }
 
@@ -195,7 +195,7 @@ export function normalizeBoardState(input: unknown): BoardState | null {
     sources,
     deals,
     freshness: normalizeFreshness(input.freshness),
-    anomalies: [...stringList(input.anomalies, 20, 200), ...(input.deals.length > LIST_MAX ? ["看板超过安全上限，请使用分页 API"] : [])],
+    anomalies: [...stringList(input.anomalies, 20, 200), ...(input.deals.length > LIST_MAX ? ["Dashboard exceeds the safe item limit. Use the paginated API."] : [])],
     pagination: isRecord(input.pagination) ? {
       offset: count(input.pagination.offset), limit: count(input.pagination.limit),
       total: count(input.pagination.total), hasMore: boolean(input.pagination.hasMore),
