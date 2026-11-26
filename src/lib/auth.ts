@@ -5,7 +5,7 @@ const SESSION_MS = 8 * 60 * 60 * 1000;
 export function accessToken(): string | null {
   const token = process.env.PERKRADAR_ACCESS_TOKEN;
   if (token === undefined || token === "") return null;
-  if (token.length < 32) throw new Error("PERKRADAR_ACCESS_TOKEN 至少需要 32 个字符");
+  if (token.length < 32) throw new Error("PERKRADAR_ACCESS_TOKEN must contain at least 32 characters");
   return token;
 }
 function equal(a: string, b: string): boolean {
@@ -34,8 +34,8 @@ export function authorized(headers: Headers, token = accessToken(), now = Date.n
 export function authFailure(request: Request): NextResponse | null {
   try {
     if (authorized(request.headers)) return null;
-    return NextResponse.json({ error: "需要登录或 Bearer token" }, { status: 401, headers: { "cache-control": "no-store" } });
+    return NextResponse.json({ error: "Sign in or provide a Bearer token" }, { status: 401, headers: { "cache-control": "no-store" } });
   } catch {
-    return NextResponse.json({ error: "访问认证配置无效" }, { status: 503, headers: { "cache-control": "no-store" } });
+    return NextResponse.json({ error: "Access authentication is misconfigured" }, { status: 503, headers: { "cache-control": "no-store" } });
   }
 }
