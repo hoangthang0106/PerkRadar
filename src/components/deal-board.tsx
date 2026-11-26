@@ -54,7 +54,7 @@ function formatSourceOutcome(source: SourceStatus): string {
   return `Failed (${source.lastError ? diagnosticLabel(source.lastError) : "reason not recorded"}); retrying next run${quality}`;
 }
 
-function formatFailure(failure: { sourceName: string; error: string }): string {
+function formatFailure(failure: { sourceId: string; sourceName: string; error: string }): string {
   return `${sourceLabel(failure.sourceId, failure.sourceName)} (${diagnosticLabel(failure.error)})`;
 }
 
