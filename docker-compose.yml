@@ -1,14 +1,17 @@
 # PerkRadar - Portainer Git stack (IT-MANAGER).
-# Prebuild the image FROM THIS FORK. No official prebuilt image is specified upstream.
+# Build image from this fork on Git Stack deployment when the Docker endpoint supports Compose builds.
+# Portainer remote Agent environments may reject stack builds; see docker-compose-prebuilt.yml fallback.
 # ONE container only. Both published host port and app listener: 18897.
 # Check that LAN_IP exists on the Docker host and TCP 18897 is unused.
 name: perkradar
 
 services:
   web:
-    # Build once from this fork via Portainer Images or `docker build`.
-    # Portainer Git stacks on remote endpoints cannot reliably run build directives.
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: local/perkradar-itmanager:18897
+    pull_policy: build
     container_name: perkradar
     restart: unless-stopped
     mem_limit: 768m
