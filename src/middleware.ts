@@ -26,7 +26,7 @@ export function loginUrl(request: NextRequest): URL {
 export async function middleware(request: NextRequest) {
   const token = process.env.PERKRADAR_ACCESS_TOKEN;
   if (!token) return NextResponse.next();
-  if (token.length < 32) return new NextResponse("访问认证配置无效", { status: 503, headers: { "cache-control": "no-store" } });
+  if (token.length < 32) return new NextResponse("Access authentication is misconfigured: PERKRADAR_ACCESS_TOKEN must contain at least 32 characters.", { status: 503, headers: { "cache-control": "no-store" } });
   if (await uiAuthorized(request.headers, token)) return NextResponse.next();
   const response = NextResponse.redirect(loginUrl(request));
   response.headers.set("cache-control", "no-store");
