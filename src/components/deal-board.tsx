@@ -25,7 +25,7 @@ import { filterDeals, type DealSort } from "@/lib/filter-deals";
 import { normalizeBoardState } from "@/lib/board-view";
 import { CATEGORIES, type BoardState, type Category, type DealDTO, type SourceStatus } from "@/lib/types";
 import "./deal-board.css";
-import { categoryLabel, sourceLabel } from "@/lib/ui-labels";
+import { categoryLabel, diagnosticLabel, sourceLabel } from "@/lib/ui-labels";
 
 const emptyPersonal: Personal = { claimed: [], favorites: [] };
 type Alert = { text: string; role: "status" | "alert"; testId: string };
@@ -39,7 +39,7 @@ function readError(data: unknown): string | null {
 function formatSourceQuality(source: SourceStatus): string {
   const quality = source.quality;
   if (!quality) return "";
-  if (quality.warning) return `; quality warning: ${quality.warning}`;
+  if (quality.warning) return `; quality warning: ${diagnosticLabel(quality.warning)}`;
   if (quality.consecutiveFailures && quality.consecutiveFailures >= 3) return `; ${quality.consecutiveFailures} consecutive failures`;
   if (quality.structureAnomaly) return "; unexpected feed structure";
   if (quality.countDrop) return "; sudden drop in parsed items";
@@ -51,11 +51,11 @@ function formatSourceOutcome(source: SourceStatus): string {
   const quality = formatSourceQuality(source) + diagnostic;
   if (source.lastOk == null) return `Not fetched yet${quality}`;
   if (source.lastOk) return `Success: ${source.lastFetched ?? 0} fetched, ${source.lastInserted ?? 0} new${quality}`;
-  return `Failed (${source.lastError ?? "reason not recorded"}); retrying next run${quality}`;
+  return `Failed (${source.lastError ? diagnosticLabel(source.lastError) : "reason not recorded"}); retrying next run${quality}`;
 }
 
 function formatFailure(failure: { sourceName: string; error: string }): string {
-  return `${failure.sourceName} (${failure.error})`;
+  return `${sourceLabel(failure.sourceId, failure.sourceName)} (${diagnosticLabel(failure.error)})`;
 }
 
 /**
@@ -235,7 +235,7 @@ export function DealBoard({ initial, authEnabled = false }: { initial: BoardStat
   if (pollError) alerts.push({ text: "Live data is temporarily unavailable. Showing the last results; this page will update when service recovers.", role: "status", testId: "poll-error" });
   if (storageError) alerts.push({ text: storageError, role: "alert", testId: "storage-error" });
   if (message) alerts.push({ text: message, role: "alert", testId: "refresh-message" });
-  if (board.anomalies?.length) alerts.push({ text: `Data notices: ${board.anomalies.join("; ")}`, role: "status", testId: "anomalies" });
+  if (board.anomalies?.length) alerts.push({ text: `Data notices: ${board.anomalies.map(diagnosticLabel).join("; ")}`, role: "status", testId: "anomalies" });
   if (board.failures.length) alerts.push({ text: `Sources failed; will retry: ${board.failures.map(formatFailure).join(", ")}`, role: "status", testId: "failures" });
 
   const categoryCounts = new Map<string, number>();
