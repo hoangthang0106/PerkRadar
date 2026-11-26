@@ -1,5 +1,7 @@
-# Compose project is fixed so this stack does not follow the directory name
-# and does not attach to another project's network, volume, or containers.
+# PerkRadar - Portainer Git stack (IT-MANAGER).
+# Build the image FROM THIS FORK. No official prebuilt image is specified upstream.
+# ONE container only. Both published host port and app listener: 18897.
+# Check that LAN_IP exists on the Docker host and TCP 18897 is unused.
 name: perkradar
 
 services:
@@ -7,39 +9,46 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: perkradar:local
+    image: local/perkradar-itmanager:18897
     container_name: perkradar
     restart: unless-stopped
+    mem_limit: 768m
+
+    ports:
+      - "${LAN_IP:?SET_DOCKER_HOST_LAN_IP}:18897:18897/tcp"
+
+    environment:
+      NODE_ENV: "production"
+      HOST: "0.0.0.0"
+      PORT: "18897"
+      DATA_DIR: "/data"
+      TZ: "Asia/Ho_Chi_Minh"
+      PERKRADAR_ACCESS_TOKEN: "${PERKRADAR_ACCESS_TOKEN:?SET_MIN_32_CHAR_ACCESS_TOKEN}"
+      # HTTP LAN only; Secure cookies would block login without HTTPS.
+      # Never publish this HTTP service to the public internet.
+      PERKRADAR_SECURE_COOKIE: "0"
+      TRUST_PROXY_HEADERS: "0"
+
+    volumes:
+      - perkradar_data:/data
+
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-    ports:
-      # Host loopback only. Override the host port with HOST_PORT if 38471 is taken.
-      # The process inside the container always listens on 38471.
-      - "127.0.0.1:${HOST_PORT:-38471}:38471"
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      NODE_ENV: production
-      PORT: "38471"
-      HOST: "0.0.0.0"
-      PERKRADAR_ACCESS_TOKEN: ${PERKRADAR_ACCESS_TOKEN:-}
-      PERKRADAR_SECURE_COOKIE: ${PERKRADAR_SECURE_COOKIE:-1}
-      DATA_DIR: /data
-      JINA_API_KEY: ${JINA_API_KEY:-}
-      JINA_API_KEY_FILE: ${JINA_API_KEY_FILE:-}
-    volumes:
-      - ./data:/data
+
     healthcheck:
-      test:
-        - CMD
-        - node
-        - -e
-        - fetch('http://127.0.0.1:38471/api/health',{headers:process.env.PERKRADAR_ACCESS_TOKEN?{Authorization:'Bearer '+process.env.PERKRADAR_ACCESS_TOKEN}:{}}).then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:18897/api/health',{headers:{Authorization:'Bearer '+process.env.PERKRADAR_ACCESS_TOKEN}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 60s
+
+volumes:
+  perkradar_data:
