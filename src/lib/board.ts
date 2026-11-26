@@ -78,10 +78,10 @@ export function getBoardState(now = Date.now()): BoardState {
           /未能解析|商品列表|网页而不是订阅源|不是 JSON|LINUX DO 福利列表|Markdown 解析出条目/.test(current.error ?? ""),
       );
       const warnings: string[] = [];
-      if (consecutiveFailures >= 3) warnings.push(`${consecutiveFailures} consecutive failures`);
-      if (countDrop) warnings.push(`Parsed item count dropped to ${current!.fetchedCount}`);
-      if (structureAnomaly) warnings.push("Unexpected source structure");
-      return [source.id, { consecutiveFailures, countDrop, structureAnomaly, warning: warnings.length ? warnings.join("; ") : null }] as const;
+      if (consecutiveFailures >= 3) warnings.push(`连续失败 ${consecutiveFailures} 轮`);
+      if (countDrop) warnings.push(`解析条数骤降至 ${current!.fetchedCount}`);
+      if (structureAnomaly) warnings.push("解析结构异常");
+      return [source.id, { consecutiveFailures, countDrop, structureAnomaly, warning: warnings.length ? warnings.join("；") : null }] as const;
     }),
   );
 
@@ -109,7 +109,7 @@ export function getBoardState(now = Date.now()): BoardState {
     .map((source) => ({
       sourceId: source.id,
       sourceName: source.name,
-      error: source.lastError || "Source collection failed",
+      error: source.lastError || "抓取失败",
     }));
 
   const ok = sources.filter((source) => source.lastOk === true).length;
@@ -122,13 +122,13 @@ export function getBoardState(now = Date.now()): BoardState {
   const severe = lastRoundAgeMs != null && lastRoundAgeMs > SEVERE_AFTER_MS;
   const anomalies: string[] = [];
   if (lastUpdatedAt == null) {
-    anomalies.push("No collection has finished yet. Results should not be treated as a current list.");
+    anomalies.push("还没有完成任何一轮抓取，页面数据不能当作当前清单");
   } else if (severe) {
-    anomalies.push("The last collection was over four hours ago. Results may be historical.");
+    anomalies.push("最近一轮已超过 4 小时，页面条目只能当历史抓取");
   } else if (stale) {
-    anomalies.push("The last collection was over 2.5 hours ago. Check container and refresh status.");
+    anomalies.push("最近一轮已超过 2.5 小时，请先确认容器与刷新状态");
   }
-  if (round?.status === "failed") anomalies.push("All sources failed during the last collection.");
+  if (round?.status === "failed") anomalies.push("上一轮所有来源都失败");
 
   const previous = round ? previousSourceRuns(round.id) : [];
   const previousBySource = new Map(previous.map((run) => [run.sourceId, run]));
@@ -137,15 +137,15 @@ export function getBoardState(now = Date.now()): BoardState {
     if (before && source.lastOk === true && before.fetchedCount > 0 && source.lastFetched != null) {
       const drop = (before.fetchedCount - source.lastFetched) / before.fetchedCount;
       if (drop >= 0.5) {
-        anomalies.push(`${source.name}: parsed item count dropped from ${before.fetchedCount} to ${source.lastFetched}`);
+        anomalies.push(`${source.name} 解析条数从 ${before.fetchedCount} 降到 ${source.lastFetched}`);
       }
     } else if (source.lastOk === true && source.lastFetched === 0) {
-      anomalies.push(`${source.name}: successful request but zero items parsed`);
+      anomalies.push(`${source.name} 本轮成功但解析到 0 条`);
     }
     if (source.quality?.consecutiveFailures && source.quality.consecutiveFailures >= 3) {
-      anomalies.push(`${source.name}: ${source.quality.consecutiveFailures} consecutive failures`);
+      anomalies.push(`${source.name} 连续失败 ${source.quality.consecutiveFailures} 轮`);
     }
-    if (source.quality?.structureAnomaly) anomalies.push(`${source.name}: unexpected source structure`);
+    if (source.quality?.structureAnomaly) anomalies.push(`${source.name} 解析结构异常`);
   }
 
   return {
