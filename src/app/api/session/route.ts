@@ -21,7 +21,7 @@ async function smallForm(request: Request): Promise<URLSearchParams> {
       const { value, done } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > 4096) { await reader.cancel(); throw new GuardError("请求过大", 413); }
+      if (size > 4096) { await reader.cancel(); throw new GuardError("Request too large", 413); }
       chunks.push(value);
     }
   } finally { reader.releaseLock(); }
@@ -44,18 +44,18 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request.headers);
     // Global login budget, independent of spoofable forwarding headers.
-    if (!consumeManualAttempt("auth-global", Date.now(), 10, 60_000)) return failure(request, 429, "请稍后重试", "rate");
+    if (!consumeManualAttempt("auth-global", Date.now(), 10, 60_000)) return failure(request, 429, "Please try again later", "rate");
     const token = accessToken();
-    if (!token) return failure(request, 400, "未启用访问认证", "disabled");
-    if (!request.headers.get("content-type")?.startsWith("application/x-www-form-urlencoded")) throw new GuardError("表单格式无效", 415);
+    if (!token) return failure(request, 400, "Access authentication is not enabled", "disabled");
+    if (!request.headers.get("content-type")?.startsWith("application/x-www-form-urlencoded")) throw new GuardError("Invalid form format", 415);
     const form = await smallForm(request);
-    if (!validToken(form.get("token") ?? "", token)) return failure(request, 401, "令牌无效", "invalid");
+    if (!validToken(form.get("token") ?? "", token)) return failure(request, 401, "Invalid access token", "invalid");
     const response = new NextResponse(null, { status: 303, headers: { ...NO_STORE, location: "/" } });
     response.cookies.set(SESSION_COOKIE, createSession(token), { httpOnly: true, sameSite: "strict", secure: secureCookie(), path: "/", maxAge: 8 * 60 * 60 });
     return response;
   } catch (error) {
     const guard = error instanceof GuardError;
-    return failure(request, guard ? error.status : 503, guard ? error.message : "认证配置或请求无效", guard ? "request" : "config");
+    return failure(request, guard ? error.status : 503, guard ? error.message : "Authentication configuration or request is invalid", guard ? "request" : "config");
   }
 }
 
@@ -67,7 +67,7 @@ export function DELETE(request: Request) {
   try {
     assertSameOrigin(request.headers);
   } catch (error) {
-    return NextResponse.json({ error: error instanceof GuardError ? error.message : "请求无效" }, { status: 403, headers: NO_STORE });
+    return NextResponse.json({ error: error instanceof GuardError ? error.message : "Invalid request" }, { status: 403, headers: NO_STORE });
   }
   const response = new NextResponse(null, { status: 204, headers: NO_STORE });
   response.cookies.set(SESSION_COOKIE, "", { httpOnly: true, sameSite: "strict", secure: secureCookie(), path: "/", maxAge: 0 });
