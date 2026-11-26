@@ -16,7 +16,7 @@ export function GET(request: Request) {
   } catch (error) {
     logFailure("health_check_failed", error);
     return NextResponse.json(
-      { ok: false, error: "数据库不可读" },
+      { ok: false, error: "Database unavailable" },
       { status: 503, headers: { "cache-control": "no-store" } },
     );
   }
